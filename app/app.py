@@ -7,7 +7,7 @@ from app.utils.logger import Logger
 load_dotenv()
 
 def create_app() -> FastAPI:
-    app = FastAPI()
+    app = FastAPI(title="Orchestrator Agent", version="1.0.0")
     logger = Logger()
 
     app.add_middleware(

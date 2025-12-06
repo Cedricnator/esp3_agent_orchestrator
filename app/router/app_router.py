@@ -25,5 +25,5 @@ def health() -> dict[str, str]:
    }
 
 app_router.include_router(prediction_router)
-app.include_router(orchestrator_router)
-app.include_router(metrics_router) 
+app_router.include_router(orchestrator_router)
+app_router.include_router(metrics_router) 

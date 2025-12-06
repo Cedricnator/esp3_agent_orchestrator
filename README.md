@@ -20,12 +20,12 @@ pip install -r requirements.txt
 
 **Development mode:**
 ```bash
-uv run uvicorn app.main:app --reload --port 33205
+uv run uvicorn app.main:app --reload --port 33201
 ```
 
 **Production mode:**
 ```bash
-uv run uvicorn app.main:app --host 0.0.0.0 --port 33205
+uv run uvicorn app.main:app --host 0.0.0.0 --port 33201
 ```
 
 ## Installation
