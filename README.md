@@ -1,36 +1,50 @@
-# ESP3 Agent Orchestrator
+# Orchestrator Agent (PP3)
 
+Microservice master that identifies people (using 20+ PP2 agents) and answers questions (using PP1 RAG).
 
-## Instrucciones
+## Architecture
+- **Orchestrator**: FastAPI + Gunicorn
+- **Database**: MongoDB (Atlas/Local)
+- **External Agents**: PP2 (Students) & PP1 (RAG)
 
-### Instalar:
-1. Activar entorno virtual
-```bash
-python3 -m venv .venv
-```
+## Setup
 
-2. Instalar dependencias
-```bash
-pip install -r requirements.txt
-```
+1.  **Environment**:
+    ```bash
+    uv sync
+    cp .env.example .env
+    # Edit .env with your MONGO_URI and API_TOKEN
+    ```
 
-# UV
+2.  **Run Locally (Dev)**:
+    ```bash
+    uv run uvicorn app.main:app --reload --port 33201
+    ```
 
-## Running the Service
+3.  **Run Tests**:
+    ```bash
+    uv run pytest
+    ```
 
-**Development mode:**
-```bash
-uv run uvicorn app.main:app --reload --port 33201
-```
+## Deployment (Docker)
 
-**Production mode:**
-```bash
-uv run uvicorn app.main:app --host 0.0.0.0 --port 33201
-```
+1.  **Build**:
+    ```bash
+    docker build -t orchestrator-agent .
+    ```
 
-## Installation
+2.  **Run**:
+    ```bash
+    docker run -p 8000:8000 --env-file .env orchestrator-agent
+    ```
 
-Install all dependencies:
-```bash
-uv sync
-```
+## API Usage
+
+**POST /identify-and-answer**
+- Headers: `Authorization: Bearer <API_TOKEN>`
+- Form Data: `image` (File), `question` (Text)
+
+## Security
+- Bearer Auth required.
+- Images hashed heavily for privacy logs.
+- Strict MIME type checks (JPEG/PNG).
