@@ -16,12 +16,17 @@ Microservice master that identifies people (using 20+ PP2 agents) and answers qu
     # Edit .env with your MONGO_URI and API_TOKEN
     ```
 
-2.  **Run Locally (Dev)**:
+2.  **Seed DB**:
+    ```bash
+    uv run python -m app.db.seed
+    ```
+
+3.  **Run Locally (Dev)**:
     ```bash
     uv run uvicorn app.main:app --reload --port 33201
     ```
 
-3.  **Run Tests**:
+4.  **Run Tests**:
     ```bash
     uv run pytest
     ```
