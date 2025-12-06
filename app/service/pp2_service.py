@@ -59,9 +59,8 @@ class PP2Service:
         }
 
         try:
-            # Assuming agent expects {"image": "base64..."}
             response = await client.post(url, json={"image": image_b64})
-            latency_ms = (time.time() - start_time) * 1000
+            latency_ms = round((time.time() - start_time) * 1000, 3)
             
             log_entry["latency_ms"] = latency_ms
             log_entry["status_code"] = response.status_code
@@ -82,14 +81,14 @@ class PP2Service:
                 return {"agent_name": name, "score": 0.0, "error": str(response.status_code)}
 
         except httpx.TimeoutException:
-            latency_ms = (time.time() - start_time) * 1000
+            latency_ms = round((time.time() - start_time) * 1000, 3)
             log_entry["latency_ms"] = latency_ms
             log_entry["timeout"] = True
             log_entry["error"] = "Timeout"
             return {"agent_name": name, "score": 0.0, "error": "Timeout"}
 
         except Exception as e:
-            latency_ms = (time.time() - start_time) * 1000
+            latency_ms = round((time.time() - start_time) * 1000, 3)
             log_entry["latency_ms"] = latency_ms
             log_entry["error"] = str(e)
             return {"agent_name": name, "score": 0.0, "error": str(e)}

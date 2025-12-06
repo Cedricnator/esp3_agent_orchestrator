@@ -40,7 +40,7 @@ class PP1Service:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             try:
                 response = await client.post(url, json={"question": question})
-                latency_ms = (time.time() - start_time) * 1000
+                latency_ms = round((time.time() - start_time) * 1000, 3)
                 
                 log_entry["latency_ms"] = latency_ms
                 log_entry["status_code"] = response.status_code
@@ -58,13 +58,13 @@ class PP1Service:
                     return None
 
             except httpx.TimeoutException:
-                log_entry["latency_ms"] = (time.time() - start_time) * 1000
+                log_entry["latency_ms"] = round((time.time() - start_time) * 1000, 3)
                 log_entry["timeout"] = True
                 log_entry["error"] = "Timeout"
                 return None
             
             except Exception as e:
-                log_entry["latency_ms"] = (time.time() - start_time) * 1000
+                log_entry["latency_ms"] = round((time.time() - start_time) * 1000, 3)
                 log_entry["error"] = str(e)
                 return None
             

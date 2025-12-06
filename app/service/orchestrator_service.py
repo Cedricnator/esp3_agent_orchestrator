@@ -4,6 +4,8 @@ import base64
 import time
 from typing import Optional, Dict
 
+from fastapi import HTTPException
+
 from app.db.mongo import MongoDB
 from app.service.pp2_service import PP2Service
 from app.service.pp1_service import PP1Service
@@ -36,6 +38,16 @@ class OrchestratorService:
         # 1. PP2 Fan-Out
         pp2_results = await self.pp2.verify_parallel(request_id, image_b64)
 
+        # Check for Multiple Timeouts/Errors
+        # "send an error if more than one service pp2 fails to respond properly"
+        error_count = sum(1 for r in pp2_results if r.get("error"))
+        if error_count > 1:
+             # Log the failure before raising exception so we have a record
+             raise HTTPException(
+                 status_code=504, 
+                 detail=f"Multiple PP2 services failed. Errors: {error_count}/{len(pp2_results)}"
+             )
+
         # 2. Fusion
         fusion_result = self.fusion.process_results(pp2_results)
         decision = fusion_result["decision"] # Str
@@ -51,7 +63,7 @@ class OrchestratorService:
             if rag_result:
                 normativa_answer = NormativaAnswer(**rag_result)
 
-        timing_ms = (time.time() - start_time) * 1000
+        timing_ms = round((time.time() - start_time) * 1000, 3)
 
         # 4. Log to Access Logs
         await self._log_access(

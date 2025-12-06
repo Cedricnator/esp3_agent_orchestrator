@@ -3,4 +3,4 @@
 __pycache__
 logs
 .agent
-
+n8n_workflow.json
