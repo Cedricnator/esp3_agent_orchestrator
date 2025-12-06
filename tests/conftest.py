@@ -4,6 +4,7 @@ import base64
 from app.app import create_app
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, AsyncMock
+import httpx
 from app.db.mongo import MongoDB
 
 @pytest.fixture
@@ -35,3 +36,23 @@ def valid_token():
 def valid_image_bytes():
     # 1x1 white pixel PNG
     return base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==")
+import pytest_asyncio
+
+@pytest_asyncio.fixture
+async def async_client_with_real_db():
+    """
+    Async Fixture that connects to the REAL database.
+    Resolves 'different loop' errors by using AsyncClient.
+    """
+    # Force new connection in the current loop
+    MongoDB.client = None 
+    MongoDB.db = None
+    
+    app = create_app()
+    
+    # Use httpx.AsyncClient for ASGI app
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        yield client
+    
+    # Cleanup
+    MongoDB.close()

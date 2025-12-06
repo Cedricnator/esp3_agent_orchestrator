@@ -13,31 +13,82 @@ def get_start_date(days: int = 7) -> datetime:
 @router.get("/summary")
 async def get_summary(days: int = 7):
     """
-    Get summary metrics (volume, latency, timeouts).
+    Get summary metrics (volume, latency, timeouts) + per-route stats.
     """
     try:
         logger.info(f"[MetricsRouter] Fetching summary for last {days} days")
         db = MongoDB.get_db()
         start_date = get_start_date(days)
         
-        # Volume & Error Rate
+        # Faceted Aggregation: Overall Summary + Per Route
+        # We need latencies array to calc p95 securely in Python
         pipeline = [
             {"$match": {"ts": {"$gte": start_date}}},
-            {"$group": {
-                "_id": None,
-                "total_requests": {"$sum": 1},
-                "avg_latency": {"$avg": "$timing_ms"},
-                "timeouts": {"$sum": "$pp2_summary.timeouts"}
+            {"$facet": {
+                "overall": [
+                    {"$group": {
+                        "_id": None,
+                        "total_requests": {"$sum": 1},
+                        "avg_latency": {"$avg": "$timing_ms"},
+                        "timeouts": {"$sum": "$pp2_summary.timeouts"}
+                    }}
+                ],
+                "routes": [
+                    {"$group": {
+                        "_id": "$route",
+                        "count": {"$sum": 1},
+                        "latencies": {"$push": "$timing_ms"},
+                        "avg_latency": {"$avg": "$timing_ms"}
+                    }}
+                ]
             }}
         ]
-        cursor = db.access_logs.aggregate(pipeline)
-        summary = await cursor.to_list(length=1)
-        result = summary[0] if summary else {"total_requests": 0, "avg_latency": 0, "timeouts": 0}
         
+        cursor = db.access_logs.aggregate(pipeline)
+        data = await cursor.to_list(length=1)
+        
+        if not data:
+             return {"period_days": days, "total_requests": 0, "routes": []}
+             
+        facet_result = data[0]
+        overall = facet_result["overall"][0] if facet_result["overall"] else {"total_requests": 0, "avg_latency": 0.0, "timeouts": 0}
+        routes_raw = facet_result["routes"]
+        
+        # Calculate Percentiles per route
+        routes_processed = []
+        import statistics
+        
+        for r in routes_raw:
+            latencies = sorted(r["latencies"])
+            count = len(latencies)
+            # Simple percentile calculation
+            def get_percentile(data, p):
+                 if not data: return 0
+                 k = (len(data)-1) * p
+                 f = int(k)
+                 c = int(k) + 1
+                 if c >= len(data): return data[-1]
+                 return data[f] * (c-k) + data[c] * (k-f)
+
+            p50 = get_percentile(latencies, 0.50)
+            p95 = get_percentile(latencies, 0.95)
+            
+            routes_processed.append({
+                "route": r["_id"],
+                "count": r["count"],
+                "avg_latency": round(r["avg_latency"], 3),
+                "p50": round(p50, 3),
+                "p95": round(p95, 3)
+            })
+
         return {
             "period_days": days,
-            **result
+            "total_requests": overall["total_requests"],
+            "avg_latency": round(overall["avg_latency"], 3),
+            "timeouts": overall["timeouts"],
+            "routes": routes_processed
         }
+
     except Exception as e:
         logger.error(f"[MetricsRouter] Error fetching summary: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -31,6 +31,11 @@ Microservice master that identifies people (using 20+ PP2 agents) and answers qu
     uv run pytest
     ```
 
+5.  **Run Integration Tests**:
+    ```bash
+    uv run python -m pytest tests/integration/test_metrics.py
+    ```
+
 ## Deployment (Docker)
 
 1.  **Build**:
