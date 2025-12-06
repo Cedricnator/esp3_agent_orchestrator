@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Defaults
-THRESHOLD = float(os.getenv("THRESHOLD", "0.75"))
-MARGIN = float(os.getenv("MARGIN", "0.10"))
+THRESHOLD = float(os.getenv("FUSION_SCORE_THRESHOLD", "0.75"))
+MARGIN = float(os.getenv("FUSION_SCORE_MARGIN", "0.10"))
 
 class FusionService:
     def __init__(self):

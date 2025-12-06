@@ -10,7 +10,7 @@ from app.db.mongo import MongoDB
 
 load_dotenv()
 
-TIMEOUT = float(os.getenv("TIMEOUT", "3.0"))
+TIMEOUT = float(os.getenv("HTTP_CLIENT_TIMEOUT_SECONDS", "3.0"))
 
 class PP2Service:
     def __init__(self):
