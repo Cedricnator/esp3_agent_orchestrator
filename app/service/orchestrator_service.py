@@ -23,7 +23,8 @@ class OrchestratorService:
         image_bytes: bytes,
         question: Optional[str],
         user_context: Dict,
-        request_obj=None
+        request_obj=None,
+        image_hash: str = None
     ) -> IdentifyResponse:
         
         start_time = time.time()
@@ -56,7 +57,12 @@ class OrchestratorService:
         await self._log_access(
             request_id=request_id,
             user_context=user_context,
-            input_meta={"has_image": True, "has_question": bool(question), "size_bytes": len(image_bytes)},
+            input_meta={
+                "has_image": True, 
+                "has_question": bool(question), 
+                "size_bytes": len(image_bytes),
+                "image_hash": image_hash
+            },
             decision=decision,
             identity=identity_data,
             pp2_summary={"queried": len(pp2_results), "timeouts": sum(1 for r in pp2_results if r.get("error") == "Timeout")},
