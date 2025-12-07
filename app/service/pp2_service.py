@@ -79,7 +79,7 @@ class PP2Service:
             
             if response.status_code == 200:
                 data = response.json()
-                score = data.get("score", 0.0)
+                score = data.get("data.score", 0.0)
                 log_entry["result"] = {"score": score, "raw": data}
                 
                 return {
