@@ -70,7 +70,7 @@ class PP2Service:
         }
 
         try:
-            files = {"file": (filename, file_content, content_type)}
+            files = {"image": (filename, file_content, content_type)}
             response = await client.post(url, files=files)
             latency_ms = round((time.time() - start_time) * 1000, 3)
             
