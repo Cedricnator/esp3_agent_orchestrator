@@ -1,5 +1,6 @@
 import os
 import time
+from app.utils.logger import Logger
 import httpx
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -10,11 +11,12 @@ from app.db.mongo import MongoDB
 load_dotenv()
 
 PP1_URL = os.getenv("PP1_URL", "http://localhost:8001")
-TIMEOUT = float(os.getenv("HTTP_CLIENT_TIMEOUT_SECONDS", "5.0"))
+TIMEOUT = float(os.getenv("PP1_CLIENT_TIMEOUT_SECONDS", "40.0"))
 
 class PP1Service:
     def __init__(self):
         self.db = MongoDB.get_db()
+        self.logger = Logger()
 
     async def ask_normativa(self, request_id: str, question: str) -> Optional[Dict[str, Any]]:
         """
@@ -39,7 +41,13 @@ class PP1Service:
 
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             try:
-                response = await client.post(url, json={"question": question})
+                payload = {
+                    "message": question,
+                    "use_rag": True,
+                    "top_k": 5
+                }
+
+                response = await client.post(url, json=payload)
                 latency_ms = round((time.time() - start_time) * 1000, 3)
                 
                 log_entry["latency_ms"] = latency_ms
@@ -47,10 +55,11 @@ class PP1Service:
 
                 if response.status_code == 200:
                     data = response.json()
+                    self.logger.info(f"[PP1Service] Received response from PP1: {data}")
                     log_entry["result"] = data
                     
                     return {
-                        "text": data.get("text", ""),
+                        "text": data.get("response", ""),
                         "citations": data.get("citations", [])
                     }
                 else:
