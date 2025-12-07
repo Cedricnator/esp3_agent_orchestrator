@@ -12,29 +12,23 @@ async def seed_db():
     await db.service_logs.delete_many({})
     
     # 2. Seed Data
-    dummy_agents = [
+    agents = [
         {
-            "name": "Agent Alpha (Mock)",
-            "endpoint_verify": "http://mock-pp2-alpha/verify",
-            "threshold": 0.85,
-            "active": True
-        },
-        {
-            "name": "Agent Beta (Mock)",
-            "endpoint_verify": "http://mock-pp2-beta/verify",
+            "name": "Agente Eduardo",
+            "endpoint_verify": "http://localhost:33210/verify",
             "threshold": 0.75,
             "active": True
         },
         {
-             "name": "Agent Gamma (Inactive)",
-             "endpoint_verify": "http://mock-pp2-gamma/verify",
-             "threshold": 0.60,
-             "active": False
-        }
+            "name": "Agente Cedric",
+            "endpoint_verify": "http://localhost:33211/verify",
+            "threshold": 0.75,
+            "active": True
+        },
     ]
     
-    await db.config.insert_many(dummy_agents)
-    print(f"[Seed] Reset 'config' collection with {len(dummy_agents)} dummy agents.")
+    await db.config.insert_many(agents)
+    print(f"[Seed] Successfully added seed data, agents: {len(agents)}")
 
 if __name__ == "__main__":
     import asyncio
