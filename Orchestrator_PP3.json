@@ -1,0 +1,436 @@
+{
+  "name": "Orchestrator PP3 - Parallel Logic",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "identify-and-answer",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryData": false
+        }
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        128
+      ],
+      "id": "d34c7194-ba98-49e1-8ff1-be871220d55b",
+      "webhookId": "fae9fb94-e776-4a27-bfd4-46d6007b2d9f"
+    },
+    {
+      "parameters": {},
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [
+        592,
+        128
+      ],
+      "id": "d1ff378e-fac7-4518-8fba-56cea4e9ce28"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get inputs from the Merge Node\nconst items = $input.all();\n\n// 2. Get original Webhook data (to keep the question and request_id)\n// We assume the Webhook node is named \"Webhook\"\nconst webhookInput = $('Webhook').first().json.body;\nconst originalRequestId = webhookInput.request_id || $('Webhook').first().json.headers['x-request-id'] || 'no-id-provided';\nconst question = webhookInput.question;\n\n// 3. Logic Configuration\nconst THRESHOLD = 0.75;\nconst MARGIN = 0.10;\n\n// 4. Map inputs to the \"candidates\" format\nconst candidates = items.map(item => {\n  const data = item.json.data || {};\n  return {\n    name: data.identity || \"Unknown\",\n    score: data.score || 0\n  };\n});\n\n// 5. Sort candidates (Highest Score First)\ncandidates.sort((a, b) => b.score - a.score);\n\nconst winner = candidates[0];\nconst runnerUp = candidates[1] || { score: 0 };\n\n// 6. Decision Logic\nlet decision = 'unknown';\nlet identityObj = null; \n\n// Only identify if score > threshold AND distinct margin\nif (winner.score >= THRESHOLD) {\n  if ((winner.score - runnerUp.score) > MARGIN) {\n    decision = 'identified';\n    identityObj = {\n      name: winner.name,\n      score: winner.score\n    };\n  } else {\n    decision = 'ambiguous';\n  }\n}\n\n\n// 8. RETURN THE EXACT JSON STRUCTURE\nreturn {\n  json: {\n    decision: decision,\n    identity: identityObj, // Will be { name: \"...\", score: ... } or null\n    candidates: candidates,\n    \n    // We initialize this as null. \n    // The \"HTTP Request (PP1)\" node will fill this later if needed.\n    normativa_answer: null, \n    \n    // Internal field: Pass the question forward so the next node can use it\n    _question: question \n  }\n};"
+      },
+      "name": "Logic Brain",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        848,
+        128
+      ],
+      "id": "bce0eac5-bba4-4a5b-bb72-ee22dc02892d"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.decision}}",
+              "value2": "identified"
+            }
+          ],
+          "boolean": [
+            {
+              "value1": "={{!!$json._question}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Identified & Has Question?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        128
+      ],
+      "id": "5b1d6e0d-1ee6-41df-a635-ca180b0d29a8",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "access_logs",
+        "fields": "decision, identity, candidates",
+        "options": {}
+      },
+      "name": "MongoDB",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        1776,
+        -80
+      ],
+      "id": "eca4a409-5f75-4d3c-a61b-5094db915eea",
+      "credentials": {
+        "mongoDb": {
+          "id": "7HABwgksJIlwZm96",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{JSON.stringify($json)}}",
+        "options": {}
+      },
+      "name": "Respond to Client",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1776,
+        208
+      ],
+      "id": "85ec38b5-a07f-4c04-9e13-0978cd84cf3c"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:33210/verify",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "image"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        64,
+        32
+      ],
+      "id": "ba8123e7-522d-4cff-b237-dd2fdebf383d",
+      "name": "Eduardo Verificator",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:33211/verify",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "image"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        64,
+        240
+      ],
+      "id": "b7bab4f3-7567-445c-9bb4-df1fc6e11cef",
+      "name": "Cedric Verificator",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:33209/ask",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": \"{{ $json._question }}\",\n  \"provider\": \"chatgpt\",\n  \"use_rag\": true,\n  \"top_k\": 5\n}",
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1280,
+        -112
+      ],
+      "id": "29351237-7979-4f2a-a1bb-b75b8a166c08",
+      "name": "Ask RAG",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the RAG Answer (The output of the node strictly before this one)\nconst ragResponse = $input.first().json;\n\n// 2. Get the Identity Data \nconst originalData = $('Logic Brain').first().json;\n\n// 3. Map the answer into the specific field\noriginalData.normativa_answer = {\n    text: ragResponse.response || \"No text returned\",\n};\n\n// 4. Return the complete, merged object\nreturn { json: originalData };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        48
+      ],
+      "id": "6b2d037a-a689-4ef2-b87f-f67cf9982952",
+      "name": "Merge RAG"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nfor (const item of $input.all()) {\n  item.json.serviceType = \"pp2\";\n  item.json.serviceName = \"Eduardo Arévalo\"\n  item.json.result = {\n    score: $input.first().json.data.score,\n    data: $input.first().json.data\n  }\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        -96
+      ],
+      "id": "39013859-1fea-47e0-8f38-3f509ab3d970",
+      "name": "Update Sv1"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nfor (const item of $input.all()) {\n  item.json.serviceType = \"pp2\";\n  item.json.serviceName = \"Cedric Kirmayr\"\n  item.json.result = {\n    score: $input.first().json.data.score,\n    data: $input.first().json.data\n  }\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        352
+      ],
+      "id": "408faef6-9320-4276-9f1b-469b4bf7a382",
+      "name": "Update Sv2"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "access_logs",
+        "fields": "serviceType, serviceName, result",
+        "options": {}
+      },
+      "name": "Service Log 1",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        416,
+        -160
+      ],
+      "id": "e4a48706-d99c-4119-896d-46766366ec33",
+      "credentials": {
+        "mongoDb": {
+          "id": "7HABwgksJIlwZm96",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "access_logs",
+        "fields": "serviceType, serviceName, result",
+        "options": {}
+      },
+      "name": "Service Log 2",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        416,
+        464
+      ],
+      "id": "765e01a2-e42e-4cf5-b3a3-a21b07b5c2cd",
+      "credentials": {
+        "mongoDb": {
+          "id": "7HABwgksJIlwZm96",
+          "name": "MongoDB account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Eduardo Verificator",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Cedric Verificator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Logic Brain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Logic Brain": {
+      "main": [
+        [
+          {
+            "node": "Identified & Has Question?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identified & Has Question?": {
+      "main": [
+        [
+          {
+            "node": "Ask RAG",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MongoDB": {
+      "main": [
+        []
+      ]
+    },
+    "Eduardo Verificator": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Sv1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cedric Verificator": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Update Sv2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask RAG": {
+      "main": [
+        [
+          {
+            "node": "Merge RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge RAG": {
+      "main": [
+        [
+          {
+            "node": "MongoDB",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sv1": {
+      "main": [
+        [
+          {
+            "node": "Service Log 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sv2": {
+      "main": [
+        [
+          {
+            "node": "Service Log 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2bc27c22-cf37-45d6-895c-61ecbc675f1d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "02109799b13287e03fda4694fbc2fa2a1dd9c5aa65d4abc05dd0e9573f96e927"
+  },
+  "id": "6mTHH6RsCJXhaC66",
+  "tags": []
+}
