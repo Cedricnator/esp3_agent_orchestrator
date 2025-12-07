@@ -46,6 +46,7 @@ async def identify_and_answer(
 
         # Delegate to Service
         response = await orchestrator_service.handle_identify_request(
+            image=image,
             image_bytes=image_bytes,
             question=question,
             user_context=user_context,

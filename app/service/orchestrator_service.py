@@ -2,9 +2,10 @@ from datetime import datetime
 from uuid import uuid4
 import base64
 import time
-from typing import Optional, Dict
+from typing import Annotated, Optional, Dict
 
-from fastapi import HTTPException
+from app.utils.logger import Logger
+from fastapi import HTTPException, UploadFile, File
 
 from app.db.mongo import MongoDB
 from app.service.pp2_service import PP2Service
@@ -19,27 +20,32 @@ class OrchestratorService:
         self.pp1 = PP1Service()
         self.fusion = FusionService()
         self.mongo = MongoDB()
+        self.logger = Logger()
 
     async def handle_identify_request(
         self,
+        image: Annotated[UploadFile, File(...)],
         image_bytes: bytes,
         question: Optional[str],
         user_context: Dict,
         request_obj=None,
         image_hash: str = None
     ) -> IdentifyResponse:
-        
+        self.logger.info("[OrchestratorService] Handling identify request")
         start_time = time.time()
         request_id = str(uuid4())
         
         # Image -> B64
-        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+        # self.logger.info("[OrchestratorService] Encoding image to base64")
+        # image_b64 = base64.b64encode(image_bytes).decode('utf-8')
 
         # 1. PP2 Fan-Out
-        pp2_results = await self.pp2.verify_parallel(request_id, image_b64)
+        self.logger.info("[OrchestratorService] Starting PP2 fan-out verification")
+        pp2_results = await self.pp2.verify_parallel(request_id, image)
 
         # Check for Multiple Timeouts/Errors
         # "send an error if more than one service pp2 fails to respond properly"
+        self.logger.info(f"[OrchestratorService] PP2 results received: {pp2_results}")
         error_count = sum(1 for r in pp2_results if r.get("error"))
         if error_count > 1:
              # Log the failure before raising exception so we have a record
@@ -49,12 +55,14 @@ class OrchestratorService:
              )
 
         # 2. Fusion
+        self.logger.info("[OrchestratorService] Processing fusion results")
         fusion_result = self.fusion.process_results(pp2_results)
         decision = fusion_result["decision"] # Str
         identity_data = fusion_result["identity"]
         candidates = fusion_result["candidates"]
 
         # 3. PP1 (RAG)
+        self.logger.info("[OrchestratorService] Starting PP1 RAG process")
         normativa_answer = None
         pp1_used = False
         if decision == "identified" and question:
@@ -64,8 +72,10 @@ class OrchestratorService:
                 normativa_answer = NormativaAnswer(**rag_result)
 
         timing_ms = round((time.time() - start_time) * 1000, 3)
+        self.logger.info(f"[OrchestratorService] Total processing time: {timing_ms} ms")
 
         # 4. Log to Access Logs
+        self.logger.info("[OrchestratorService] Logging access")
         await self._log_access(
             request_id=request_id,
             user_context=user_context,

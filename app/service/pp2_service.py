@@ -1,10 +1,12 @@
 import asyncio
 import os
 import time
+from app.utils.logger import Logger
 import httpx
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Annotated, List, Dict
 from dotenv import load_dotenv
+from fastapi import UploadFile, File
 
 from app.db.mongo import MongoDB
 
@@ -15,6 +17,7 @@ TIMEOUT = float(os.getenv("HTTP_CLIENT_TIMEOUT_SECONDS", "3.0"))
 class PP2Service:
     def __init__(self):
         self.db = MongoDB.get_db()
+        self.logger = Logger()
 
     async def get_active_agents(self) -> List[Dict]:
         """Fetch active agents from the 'config' collection."""
@@ -22,7 +25,7 @@ class PP2Service:
         agents = await cursor.to_list(length=100)
         return agents
 
-    async def verify_parallel(self, request_id: str, image_b64: str) -> List[Dict]:
+    async def verify_parallel(self, request_id: str, image: Annotated[UploadFile, File(...)]) -> List[Dict]:
         """
         Fan-out to all active agents in parallel.
         Returns a list of results (one per agent).
@@ -32,18 +35,26 @@ class PP2Service:
         if not agents:
             return []
 
+        self.logger.info(f"PP2Service: Found {len(agents)} active agents for verification.")
+        
+        # Read file content once to avoid concurrency issues
+        await image.seek(0)
+        file_content = await image.read()
+        await image.seek(0)
+
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             tasks = [
-                self._call_agent(client, agent, request_id, image_b64)
+                self._call_agent(client, agent, request_id, file_content, image.filename, image.content_type)
                 for agent in agents
             ]
             results = await asyncio.gather(*tasks)
             return results
 
-    async def _call_agent(self, client: httpx.AsyncClient, agent: Dict, request_id: str, image_b64: str) -> Dict:
+    async def _call_agent(self, client: httpx.AsyncClient, agent: Dict, request_id: str, file_content: bytes, filename: str, content_type: str) -> Dict:
         start_time = time.time()
         url = agent.get("endpoint_verify")
         name = agent.get("name")
+        self.logger.info(f"PP2Service: Calling agent {name} at {url}")
         
         log_entry = {
             "request_id": request_id,
@@ -51,7 +62,7 @@ class PP2Service:
             "service_type": "pp2",
             "service_name": name,
             "endpoint": url,
-            "payload_size_bytes": len(image_b64),
+            "payload_size_bytes": len(file_content),
             "timeout": False,
             "error": None,
             "result": None,
@@ -59,7 +70,8 @@ class PP2Service:
         }
 
         try:
-            response = await client.post(url, json={"image": image_b64})
+            files = {"file": (filename, file_content, content_type)}
+            response = await client.post(url, files=files)
             latency_ms = round((time.time() - start_time) * 1000, 3)
             
             log_entry["latency_ms"] = latency_ms
