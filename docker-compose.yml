@@ -1,0 +1,12 @@
+services:
+  orchestrator:
+    build: .
+    container_name: esp3_agent_orchestrator
+    ports:
+      - "33201:33201"
+    networks:
+      - esp3_network
+    
+networks:
+  esp3_network:
+    external: true

@@ -14,13 +14,13 @@ async def seed_db():
     # 2. Seed Data
     agents = [
         {
-            "name": "Agente Eduardo",
+            "name": "Eduardo Arévalo",
             "endpoint_verify": "http://localhost:33210/verify",
             "threshold": 0.75,
             "active": True
         },
         {
-            "name": "Agente Cedric",
+            "name": "Cedric Kirmayr",
             "endpoint_verify": "http://localhost:33211/verify",
             "threshold": 0.75,
             "active": True
