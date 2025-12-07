@@ -76,15 +76,15 @@ async def get_summary(days: int = 7):
             routes_processed.append({
                 "route": r["_id"],
                 "count": r["count"],
-                "avg_latency": round(r["avg_latency"], 3),
-                "p50": round(p50, 3),
-                "p95": round(p95, 3)
+                "avg_latency": round(r["avg_latency"], 3) if r["avg_latency"] is not None else 0.0,
+                "p50": round(p50, 3) if p50 is not None else 0.0,
+                "p95": round(p95, 3) if p95 is not None else 0.0
             })
 
         return {
             "period_days": days,
             "total_requests": overall["total_requests"],
-            "avg_latency": round(overall["avg_latency"], 3),
+            "avg_latency": round(overall["avg_latency"], 3) if overall["avg_latency"] is not None else 0.0,
             "timeouts": overall["timeouts"],
             "routes": routes_processed
         }
