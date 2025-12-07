@@ -1,19 +1,41 @@
 from mcp.server.fastmcp import FastMCP
-from app.model.api_models import IdentifyResponse, Identity, NormativaAnswer
 from app.service.pp2_service import PP2Service
 from app.service.fusion_service import FusionService
 from app.service.pp1_service import PP1Service
 from app.db.mongo import MongoDB
-import asyncio
 from uuid import uuid4
 import base64
-import httpx
+import io
 from datetime import datetime
 
 # Initialize FastMCP Server
 mcp = FastMCP("Orchestrator Agent")
 
+class MockUploadFile:
+    def __init__(self, data: bytes, filename: str = "image.jpg", content_type: str = "image/jpeg"):
+        self.file = io.BytesIO(data)
+        self.filename = filename
+        self.content_type = content_type
 
+    async def read(self, size: int = -1) -> bytes:
+        return self.file.read(size)
+
+    async def seek(self, offset: int) -> None:
+        self.file.seek(offset)
+
+    async def close(self) -> None:
+        self.file.close()
+
+def detect_image_info(data: bytes) -> tuple[str, str]:
+    if data.startswith(b'\xff\xd8\xff'):
+        return "image.jpg", "image/jpeg"
+    elif data.startswith(b'\x89PNG\r\n\x1a\n'):
+        return "image.png", "image/png"
+    elif data.startswith(b'GIF87a') or data.startswith(b'GIF89a'):
+        return "image.gif", "image/gif"
+    elif data.startswith(b'RIFF') and data[8:12] == b'WEBP':
+        return "image.webp", "image/webp"
+    return "image.jpg", "image/jpeg"
 
 pp2 = PP2Service()
 fusion = FusionService()
@@ -27,8 +49,22 @@ async def identify_person(image_b64: str, timeout_s: float = 3.0) -> str:
     """
     request_id = str(uuid4())
     
+    # Handle data URI scheme if present
+    if "," in image_b64:
+        image_b64 = image_b64.split(",")[1]
+
+    try:
+        image_bytes = base64.b64decode(image_b64)
+        if not image_bytes:
+            return "Error: Decoded image is empty."
+            
+        filename, content_type = detect_image_info(image_bytes)
+        mock_file = MockUploadFile(image_bytes, filename=filename, content_type=content_type)
+    except Exception as e:
+        return f"Error decoding image: {str(e)}"
+    
     # 1. Verify
-    pp2_results = await pp2.verify_parallel(request_id, image_b64)
+    pp2_results = await pp2.verify_parallel(request_id, mock_file)
     
     # 2. Fuse
     fusion_result = fusion.process_results(pp2_results)
