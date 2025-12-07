@@ -5,7 +5,7 @@ services:
     ports:
       - "33201:33201"
     networks:
-      - esp3_network
+      - esp3-network
   n8n-orchestrator:
     image: docker.n8n.io/n8nio/n8n
     ports:
@@ -21,11 +21,11 @@ services:
     volumes:
       - ./n8n_data:/home/node/.n8n
     networks:
-      - esp3_network
+      - esp3-network
 volumes:
   n8n_data:
     driver: local
 
 networks:
-  esp3_network:
+  esp3-network:
     external: true
