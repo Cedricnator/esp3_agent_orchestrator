@@ -6,6 +6,8 @@ services:
       - "33201:33201"
     networks:
       - esp3-network
+    env_file:
+      - ./.env
   n8n-orchestrator:
     image: docker.n8n.io/n8nio/n8n
     ports:
